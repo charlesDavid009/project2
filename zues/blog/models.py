@@ -12,16 +12,21 @@ class Blog(models.Model):
     """
     API FOR USER TO CREATE THEIR OWN BLOG POST
     """
-    #parent = models.ForeignKey('self', on_delete = models.CASCADE)
+    parent = models.ForeignKey('self', null= True,  on_delete = models.SET_NULL)
     title = models.CharField(max_length=200, blank=False, null=True)
     content = models.CharField(max_length=8000, blank=False, null=True)
     picture = models.ImageField(blank=True, null=True)
     user = models.ForeignKey(User, on_delete=models.CASCADE)
-    comments = models.ManyToManyField(
-        User, related_name='Blog_comments', blank=True, through='Comment')
-    likes = models.ManyToManyField(
-        User, related_name='Blog_likes', blank=True, through='BlogLikes')
+    comments = models.ManyToManyField(User, related_name='Blog_comments', blank=True, through='Comment')
+    likes = models.ManyToManyField(User, related_name='Blog_likes', blank=True, through='BlogLikes')
     created = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-id']
+
+    @property
+    def is_reblog(self):
+        return self.parrent != None
 
     @property
     def user_info(self):
@@ -48,10 +53,8 @@ class Comment(models.Model):
     blog = models.ForeignKey(Blog, on_delete=models.CASCADE)
     user = models.ForeignKey(USER, on_delete=models.CASCADE)
     text = models.TextField()
-    like = models.ManyToManyField(
-        USER, related_name='Commnets_likes', through="CommentLikes")
-    comment = models.ManyToManyField(USER, related_name='Commnets_count')
-
+    like = models.ManyToManyField(USER, blank= True, related_name='Commnets_likes', through="CommentLikes")
+    comment = models.ManyToManyField(USER, blank=True,  related_name='Commnets_count', through="SubComment")
     created = models.DateTimeField(auto_now_add=True)
 
     @property
@@ -79,8 +82,7 @@ class SubComment(models.Model):
     blog = models.ForeignKey(Comment, on_delete=models.CASCADE)
     user = models.ForeignKey(USER, on_delete=models.CASCADE)
     text = models.TextField()
-    like = models.ManyToManyField(
-        USER, related_name='SubCommnets_likes', through="SubCommentLikes")
+    like = models.ManyToManyField(USER, blank= True, related_name='SubCommnets_likes', through="SubCommentLikes")
     created = models.DateTimeField(auto_now_add=True)
 
     @property
