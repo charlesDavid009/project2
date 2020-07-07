@@ -249,6 +249,9 @@ def blog_actions(request, *args, **kwargs):
             data = serializer.validated_data
             blog_id = data.get("id")
             action = data.get("action")
+            ref = data.get("reference")
+            til = data.get("title")
+            add = data.get("add")
             qs = MyBlog.objects.filter(id=blog_id)
             if not qs.exists():
                 return Response({}, status=status.HTTP_404_NOT_FOUND)
@@ -263,8 +266,11 @@ def blog_actions(request, *args, **kwargs):
                 return Response(serializer.data)
             elif action == "reblog":
                 new_blog = MyBlog.objects.create(
-                    user=request.user,
+                    owner=request.user,
                     parent=obj,
+                    reference= ref,
+                    title= til,
+                    content= add
                 )
                 serializer = BlogSerializer(new_blog)
                 return Response(serializer.data, status=status.HTTP_201_CREATED)
@@ -279,7 +285,7 @@ def message(request, id, *args, **kwargs):
     """
     if request.method == 'POST':
         vs = Group.objects.filter(users=request.user)
-        if not vs.exsits():
+        if not vs.exists():
             return Response({}, status=status.HTTP_401_UNAUTHORIZED)
         serializer = CreateMessageSerializer(data=request.data)
         if serializer.is_valid():
@@ -310,7 +316,7 @@ def message_list(request, id, *args, **kwargs):
 
     if request.method == 'GET':
         vs = Group.objects.filter(follower=request.user)
-        if not vs.exsits():
+        if not vs.exists():
             return Response({}, status=status.HTTP_401_UNAUTHORIZED)
         qs = MyBlog.objects.filter(reference=id).order_by('-created_at')
         serializer = MessageSerializer(qs, many=True)
@@ -367,7 +373,7 @@ def message_actions(request, *args, **kwargs):
     """
     if request.method == 'POST':
         vs = Group.objects.filter(follower=request.user)
-        if not vs.exsits():
+        if not vs.exists():
             return Response({}, status=status.HTTP_401_UNAUTHORIZED)
         serializer = ActionBlogSerializer(data=request.data)
         if serializer.is_valid():
@@ -375,7 +381,7 @@ def message_actions(request, *args, **kwargs):
             blog_id = data.get("id")
             action = data.get("action")
             qs = Message.objects.filter(id=blog_id)
-            if not qs.exsits():
+            if not qs.exists():
                 return Response({}, status=status.HTTP_404_NOT_FOUND)
             obj = qs.first()
             if action == "like":
@@ -396,7 +402,7 @@ def comment(request, id, *args, **kwargs):
     """
     if request.method == 'POST':
         vs = Group.objects.filter(follower=request.user)
-        if not vs.exsits():
+        if not vs.exists():
             return Response({}, status=status.HTTP_401_UNAUTHORIZED)  
         serializer = CreateCommentSerializer(data=request.data)
         if serializer.is_valid():
@@ -426,7 +432,7 @@ def comment_list(request, id, *args, **kwargs):
 
     if request.method == 'GET':
         vs = Group.objects.filter(follower=request.user)
-        if not vs.exsits():
+        if not vs.exists():
             return Response({}, status=status.HTTP_401_UNAUTHORIZED)
         qs = MyComment.objects.filter(reference=id).order_by('-created_at')
         serializer = CommentSerializer(qs, many=True)
@@ -483,7 +489,7 @@ def comment_actions(request, *args, **kwargs):
     """
     if request.method == 'POST':
         vs = Group.objects.filter(follower=request.user)
-        if not vs.exsits():
+        if not vs.exists():
             return Response({}, status=status.HTTP_401_UNAUTHORIZED)  
         serializer = ActionBlogSerializer(data=request.data)
         if serializer.is_valid():
@@ -491,7 +497,7 @@ def comment_actions(request, *args, **kwargs):
             blog_id = data.get("id")
             action = data.get("action")
             qs = MyComment.objects.filter(id=blog_id)
-            if not qs.exsits():
+            if not qs.exists():
                 return Response({}, status=status.HTTP_404_NOT_FOUND)
             obj = qs.first()
             if action == "like":

@@ -49,6 +49,13 @@ class CreateBlogSerializer(serializers.Serializer):
     def create(self, validated_data):
         return MyBlog.objects.create(**validated_data)
 
+    def update(self, instance, validated_data):
+        instance.titletitle = validated_data.get('title', instance.title)
+        instance.picture = validated_data.get('picture', instance.picture)
+        instance.content = validated_data.get('content', instance.content)
+        instance.save()
+        return instance
+
 class BlogSerializer(serializers.ModelSerializer):
     likes = serializers.SerializerMethodField(read_only=True)
     comment = serializers.SerializerMethodField(read_only=True)
@@ -97,7 +104,10 @@ class CreateMessageSerializer(serializers.Serializer):
 
 class ActionBlogSerializer(serializers.Serializer):
     id = serializers.IntegerField()
+    reference= serializers.IntegerField(required= False)
     action = serializers.CharField()
+    title = serializers.CharField(required= False)
+    add = serializers.CharField(required= False)
 
     def validate_action(self, value):
         value = value.lower().strip()
