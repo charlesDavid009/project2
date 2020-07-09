@@ -92,7 +92,7 @@ def group_actions(request, *args, **kwargs):
         serializer = ActionBlogSerializer(data=request.data)
         if serializer.is_valid():
             data = serializer.validated_data
-            blog_id = data.get("id")
+            blog_id = data.get("id_")
             action = data.get("action")
             qs = Group.objects.filter(id=blog_id)
             if not qs.exists():

@@ -26,9 +26,9 @@ class GroupSerializer(serializers.ModelSerializer):
 
 class CreateGroupSerializer(serializers.Serializer):
     group_name = serializers.CharField(max_length = 100)
-    description = serializers.CharField(required=False, allow_blank=True)
+    description = serializers.CharField(required=False)
     picture = serializers.ImageField(required= False)
-    owner = serializers.IntegerField()
+    owner_id = serializers.IntegerField()
 
     def create(self, validated_data):
         return Group.objects.create(**validated_data)
