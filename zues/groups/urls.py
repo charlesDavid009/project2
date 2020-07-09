@@ -16,8 +16,7 @@ urlpatterns = [
 
     path('Group/message',  views.message),
     path('Group/<int:id>/message_list/', views.message_list),
-    path('Group/<int:id>/message_details/', views.message_details),
-    path('Group/<int:pk>/message_delete/', views.message_delete),
+    path('Group/<int:pk>/message_details/', views.message_details),
     path('Group/message_actions', views.message_actions),
 
     path('Group/comment',  views.comment),

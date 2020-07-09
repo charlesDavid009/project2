@@ -44,7 +44,8 @@ def create_group(request, *args, **kwargs):
         if serializer.is_valid():
             serializer.save()
             return Response(serializer.data, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        return Response({}, status=status.HTTP_400_BAD_REQUEST)
+
 
 
 @api_view(['GET'])
@@ -65,21 +66,18 @@ def group_delete(request, pk, *args, **kwargs):
     """
     THIS DELETE IF THE USERS OWNS THE POST
     """
-    try:
-        item = Group.objects.get(pk=pk)
-    except Group.DoesNotExist:
-        return Response(status=status.HTTP_404_NOT_FOUND)
-
-    if request.method == 'GET':
-        serializer = GroupSerializer(item)
-        return Response(serializer.data)
-
     if request.method == 'DELETE':
-        QS = item.objects.filter(owner=request.user)
-        if QS.exists():
-            QS.delete()
-            return Response(status=status.HTTP_2OO_NO_CONTENT)
-        return Response(status=status.HTTP_401_NOT_AUTHORISED)
+        qs= Group.objects.filter(user__id=request.user)
+        if not qs.exists():
+            return Response(status=status.HTTP_401_UNAUTHORIZED)
+        obj = qs.first()
+        try:
+            item = Group.objects.get(pk=pk)
+        except Group.DoesNotExist:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        item.delete()
+        return Response(status=status.HTTP_2OO_NO_CONTENT)
+    return Response(status=status.HTTP_400_BAD_REQUEST)
 
 
 @api_view(['POST'])
@@ -97,7 +95,7 @@ def group_actions(request, *args, **kwargs):
             blog_id = data.get("id")
             action = data.get("action")
             qs = Group.objects.filter(id=blog_id)
-            if not qs.exsits():
+            if not qs.exists():
                 return Response({}, status=status.HTTP_401_UNAUTHORIZED)
             obj = qs.first()
             if action == "like":
@@ -119,7 +117,7 @@ def group_actions(request, *args, **kwargs):
             elif action == "add":
                 obj.users.add(request.user)
                 vs = Group.objects.filter(follower=request.user)
-                if not vs.exsits():
+                if not vs.exists():
                     obj.follower.add(request.user)
                     serializer = GroupSerializer(obj)
                     return Response(serializer.data)
@@ -170,8 +168,10 @@ def create_blog(request, *args, **kwargs):
                 reference=obj,
                 title=title,
                 content= content, 
-                picture= picture
+                picture= picture, 
+                
             )
+            follower.add(request.user)
             serializer = BlogSerializer(my_comment)
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response({}, status=status.HTTP_400_BAD_REQUEST)
@@ -192,25 +192,32 @@ def blog_list(request, id, *args, **kwargs):
         return Response(serializer.data)
 
 
-@api_view(['GET'])
+@api_view(['GET', 'DELETE'])
 @permission_classes([IsAuthenticated])
 def blog_details(request, pk, *args, **kwargs):
     """
     THIS PRINTS OUT THE DETAILS WHEN CLICKED
     """
-    
-    try:
-        item = MyBlog.objects.get(pk=pk)
-    except MyBlog.DoesNotExist:
-        return Response(status=status.HTTP_404_NOT_FOUND)
+    vs = Group.objects.filter(follower=request.user)
+    if  vs.exists():
+        try:
+            item = MyBlog.objects.get(pk=pk)
+        except MyBlog.DoesNotExist:
+            return Response(status=status.HTTP_404_NOT_FOUND)
 
-    if request.method == 'GET':
-        vs = Group.objects.filter(follower=request.user)
-        if not vs.exists():
-            return Response({}, status=status.HTTP_401_UNAUTHORIZED)
-        serializers = BlogSerializer(item)
-        return Response(serializers.data)
-
+        if request.method == 'GET':  
+            serializers = BlogSerializer(item)
+            return Response(serializers.data)
+        
+        qs= MyBlog.objects.filter(owner=request.user)
+        if qs.exists():
+            obj = qs.first()
+            if request.method == 'DELETE':
+                item.delete()
+                return Response(status=status.HTTP_203_NO_CONTENT)
+            return Response(status=status.HTTP_400_BAD_REQUEST)
+        return Response(status=status.HTTP_401_UNAUTHORIZED)
+    return Response(status=status.HTTP_403_FORBIDDEN)
 
 @api_view(['GET', 'DELETE'])
 @permission_classes([IsAuthenticated])
@@ -218,18 +225,18 @@ def blog_delete(request, pk, *args, **kwargs):
     """
     THIS DELETE IF THE USERS OWNS THE POST
     """
-    try:
-        item = MyBlog.objects.get(pk=pk)
-    except MyBlog.DoesNotExist:
-        return Response(status=status.HTTP_404_NOT_FOUND)
-
     if request.method == 'DELETE':
-        QS = item.objects.filter(owner=request.user)
-        if QS.exists():
-            QS.delete()
-            return Response(status=status.HTTP_2OO_NO_CONTENT)
-        return Response(status=status.HTTP_401_NOT_AUTHORISED)
-
+        qs= MyBlog.objects.filter(user__id=request.user)
+        if not qs.exists():
+            return Response(status=status.HTTP_401_UNAUTHORIZED)
+        obj = qs.first()
+        try:
+            item = MyBlog.objects.get(pk=pk)
+        except MyBlog.DoesNotExist:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        item.delete()
+        return Response(status=status.HTTP_2OO_NO_CONTENT)
+    return Response(status=status.HTTP_400_BAD_REQUEST)
 
 
 @api_view(['POST'])
@@ -247,9 +254,8 @@ def blog_actions(request, *args, **kwargs):
         serializer = ActionBlogSerializer(data=request.data)
         if serializer.is_valid():
             data = serializer.validated_data
-            blog_id = data.get("id")
+            blog_id = data.get("id_")
             action = data.get("action")
-            ref = data.get("reference")
             til = data.get("title")
             add = data.get("add")
             qs = MyBlog.objects.filter(id=blog_id)
@@ -265,10 +271,11 @@ def blog_actions(request, *args, **kwargs):
                 serializer = BlogSerializer(obj)
                 return Response(serializer.data)
             elif action == "reblog":
+                vs = obj.reference
                 new_blog = MyBlog.objects.create(
                     owner=request.user,
                     parent=obj,
-                    reference= ref,
+                    reference= vs,
                     title= til,
                     content= add
                 )
@@ -279,7 +286,7 @@ def blog_actions(request, *args, **kwargs):
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
-def message(request, id, *args, **kwargs):
+def message(request, *args, **kwargs):
     """
     ADD MESSAGE TO BLOG
     """
@@ -299,7 +306,7 @@ def message(request, id, *args, **kwargs):
             my_comment = Message.objects.create(
                 owner=request.user,
                 reference=obj,
-                content= content, 
+                message= content, 
             )
             serializer = MessageSerializer(my_comment)
             return Response(serializer.data, status=status.HTTP_201_CREATED)
@@ -322,45 +329,33 @@ def message_list(request, id, *args, **kwargs):
         serializer = MessageSerializer(qs, many=True)
         return Response(serializer.data)
 
-@api_view(['GET'])
+
+@api_view(['GET', 'DELETE'])
 @permission_classes([IsAuthenticated])
 def message_details(request, pk, *args, **kwargs):
     """
     THIS PRINTS OUT THE DETAILS WHEN CLICKED
     """
-    try:
-        item = Message.objects.get(pk=pk)
-    except Message.DoesNotExist:
-        return Response(status=status.HTTP_404_NOT_FOUND)
+    vs = Group.objects.filter(follower=request.user)
+    if  vs.exists():
+        try:
+            item = Message.objects.get(pk=pk)
+        except Message.DoesNotExist:
+            return Response(status=status.HTTP_404_NOT_FOUND)
 
-    if request.method == 'GET':
-        vs = Group.objects.filter(follower=request.user)
-        if not vs.exsits():
-            return Response({}, status=status.HTTP_404_NOT_FOUND)  
-        serializers = MessageSerializer(item)
-        return Response(serializers.data)
-
-@api_view(['GET', 'DELETE'])
-@permission_classes([IsAuthenticated])
-def message_delete(request, pk, *args, **kwargs):
-    """
-    THIS DELETE IF THE USERS OWNS THE POST
-    """
-    try:
-        item = Message.objects.get(pk=pk)
-    except Message.DoesNotExist:
-        return Response(status=status.HTTP_404_NOT_FOUND)
-
-    if request.method == 'GET':
-        serializer = MessageSerializer(item)
-        return Response(serializer.data)
-
-    if request.method == 'DELETE':
-        QS = item.objects.filter(owner=request.user)
-        if QS.exists():
-            QS.delete()
-            return Response(status=status.HTTP_2OO_NO_CONTENT)
-        return Response(status=status.HTTP_401_NOT_AUTHORISED)
+        if request.method == 'GET':  
+            serializers = MessageSerializer(item)
+            return Response(serializers.data)
+        
+        qs= Message.objects.filter(owner=request.user)
+        if qs.exists():
+            obj = qs.first()
+            if request.method == 'DELETE':
+                item.delete()
+                return Response(status=status.HTTP_203_NO_CONTENT)
+            return Response(status=status.HTTP_400_BAD_REQUEST)
+        return Response(status=status.HTTP_401_UNAUTHORIZED)
+    return Response(status=status.HTTP_403_FORBIDDEN)
 
 
 @api_view(['POST'])
@@ -462,21 +457,19 @@ def comment_delete(request, pk, *args, **kwargs):
     """
     THIS DELETE IF THE USERS OWNS THE POST
     """
-    try:
-        item = MyComment.objects.get(pk=pk)
-    except Group.DoesNotExist:
-        return Response(status=status.HTTP_404_NOT_FOUND)
-
-    if request.method == 'GET':
-        serializer = CommentSerializer(item)
-        return Response(serializer.data)
-
     if request.method == 'DELETE':
-        QS = item.objects.filter(owner=request.user)
-        if QS.exists():
-            QS.delete()
-            return Response(status=status.HTTP_2OO_NO_CONTENT)
-        return Response(status=status.HTTP_401_NOT_AUTHORISED)
+        qs=MyComment.objects.filter(user__id=request.user)
+        if not qs.exists():
+            return Response(status=status.HTTP_401_UNAUTHORIZED)
+        obj = qs.first()
+        try:
+            item =MyComment.objects.get(pk=pk)
+        except MyComment.DoesNotExist:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        item.delete()
+        return Response(status=status.HTTP_2OO_NO_CONTENT)
+    return Response(status=status.HTTP_400_BAD_REQUEST)
+
 
 
 @api_view(['POST'])

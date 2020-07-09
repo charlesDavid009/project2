@@ -7,6 +7,7 @@ ACTIONS = settings.ACTIONS
 
 class GroupSerializer(serializers.ModelSerializer):
     likes = serializers.SerializerMethodField(read_only=True)
+    users = serializers.SerializerMethodField(read_only=True)
     follower = serializers.SerializerMethodField(read_only=True)
 
     class Meta:
@@ -77,20 +78,27 @@ class BlogSerializer(serializers.ModelSerializer):
             content = obj.parent.content
             return content
 
+    def get_title(self, obj):
+        title = obj
+        if obj.is_reblog:
+            title = obj.parent.title
+            return title
+
+
 
 class MessageSerializer(serializers.ModelSerializer):
     like = serializers.SerializerMethodField(read_only=True)
-    comment = serializers.SerializerMethodField(read_only=True)
+    comments = serializers.SerializerMethodField(read_only=True)
 
     class Meta:
         model = Message
-        fields = ["reference", "id", "comment", "like", "created_at"]
+        fields = ["reference", "id", "comments", "like", "created_at"]
 
     def get_like(self, obj):
         return obj.like.count()
 
-    def get_comment(self, obj):
-        return obj.comment.count()
+    def get_comments(self, obj):
+        return obj.comments.count()
 
 
 
@@ -103,8 +111,7 @@ class CreateMessageSerializer(serializers.Serializer):
 
 
 class ActionBlogSerializer(serializers.Serializer):
-    id = serializers.IntegerField()
-    reference= serializers.IntegerField(required= False)
+    id_ = serializers.IntegerField()
     action = serializers.CharField()
     title = serializers.CharField(required= False)
     add = serializers.CharField(required= False)

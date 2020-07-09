@@ -64,7 +64,7 @@ class MyBlog(models.Model):
     parent = models.ForeignKey("self", null = True, blank= True,  on_delete= models.SET_NULL)
     reference = models.ForeignKey(Group, on_delete=models.CASCADE)
     title = models.CharField(max_length = 200, blank = False, null = True)
-    content = models.TextField(blank=False , null = False )
+    content = models.TextField(blank=False , null = True )
     picture = models.ImageField(blank = True, null = True)
     owner = models.ForeignKey(User, on_delete = models.CASCADE)
     likes = models.ManyToManyField(USER, related_name = 'Blog_owner', blank = True,  through="MyBlogLikes")

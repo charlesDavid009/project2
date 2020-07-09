@@ -64,8 +64,19 @@ def items_list(request):
         serializer = BlogSerializer(item, many=True)
         return Response(serializer.data)
 
-
 @api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def items_user_list(request):
+    """
+    list of items or create a new line
+    """
+    if request.method == 'GET':
+        item = Blog.objects.filter(user=request.user).order_by('-created')
+        serializer = BlogSerializer(item, many=True)
+        return Response(serializer.data)
+
+
+@api_view(['GET', 'DELETE'])
 @permission_classes([IsAuthenticated])
 def items_details(request, pk,  *args, **kwargs):
     """
@@ -74,12 +85,22 @@ def items_details(request, pk,  *args, **kwargs):
     """
     try:
         item = Blog.objects.get(pk=pk)
-    except Blog.DoesNotExist:
+    except MyBlog.DoesNotExist:
         return Response(status=status.HTTP_404_NOT_FOUND)
 
-    if request.method == 'GET':
+    if request.method == 'GET':  
         serializers = BlogSerializer(item)
         return Response(serializers.data)
+    
+    qs= Blog.objects.filter(user=request.user)
+    if qs.exists():
+        obj = qs.first()
+        if request.method == 'DELETE':
+            item.delete()
+            return Response(status=status.HTTP_203_NO_CONTENT)
+        return Response(status=status.HTTP_400_BAD_REQUEST)
+    return Response(status=status.HTTP_401_UNAUTHORIZED)
+
 
 
 @api_view(['DELETE'])
@@ -206,17 +227,23 @@ def comment_delete(request, pk,  *args, **kwargs):
     THIS DELETE IF THE USERS OWNS THE COMMENT
     """
     try:
-        qs = Comment.objects.get(pk=pk)
+        item = Comment.objects.get(pk=pk)
     except Comment.DoesNotExist:
         return Response(status=status.HTTP_404_NOT_FOUND)
 
-    if request.method == 'DELETE':
-        qs = qs.filter(user=request.user)
-        if not qs.exists():
-            return Response(status=status.HTTP_401_UNAUTHORIZED)
+    if request.method == 'GET':
+        serializers = CommentSerializer(item)
+        return Response(serializers.data)
+
+    qs = Comment.objects.filter(user=request.user)
+    if qs.exists():
         obj = qs.first()
-        obj.delete()
-        return Response(status=status.HTTP_2OO_NO_CONTENT)
+        if request.method == 'DELETE':
+            item.delete()
+            return Response(status=status.HTTP_203_NO_CONTENT)
+        return Response(status=status.HTTP_400_BAD_REQUEST)
+    return Response(status=status.HTTP_401_UNAUTHORIZED)
+
 
 
 @api_view(['POST'])
@@ -306,16 +333,22 @@ def subcomment_delete(request, pk,  *args, **kwargs):
     THIS DELETE IF THE USERS OWNS THE COMMENT
     """
     try:
-        item = SubComment.objects.get(pk=pk)
+        item =SubComment.objects.get(pk=pk)
     except SubComment.DoesNotExist:
         return Response(status=status.HTTP_404_NOT_FOUND)
 
-    if request.method == 'DELETE':
-        user = item.filter(user=request.user)
-        if not user.exists():
-            return Response(status=status.HTTP_401_UNAUTHORIZED)
-        item.delete()
-        return Response(status=status.HTTP_2OO_NO_CONTENT)
+    if request.method == 'GET':
+        serializers = SubCommentSerializer(item)
+        return Response(serializers.data)
+
+    qs = SubComment.objects.filter(user=request.user)
+    if qs.exists():
+        obj = qs.first()
+        if request.method == 'DELETE':
+            item.delete()
+            return Response(status=status.HTTP_203_NO_CONTENT)
+        return Response(status=status.HTTP_400_BAD_REQUEST)
+    return Response(status=status.HTTP_401_UNAUTHORIZED)
 
 
 @api_view(['POST'])
