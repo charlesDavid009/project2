@@ -27,7 +27,7 @@ class Profile(models.Model):
 
     def user_did_save(sender, instance, created, *args, **kwargs):
         if created:
-            Profile.objects.get_or_created(user=instance)
+            Profile.objects.get_or_create(user=instance)
 
     post_save.connect(user_did_save, sender=USER)
 

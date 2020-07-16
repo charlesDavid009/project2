@@ -14,10 +14,13 @@ class Group(models.Model):
     """
     group_name = models.CharField(max_length = 100, blank = False, null = True)
     users = models.ManyToManyField(USER, related_name='groups_users', blank=True, through="Uses")
+    request = models.ManyToManyField(USER, related_name='groups_request', blank=True, through="Request")
+    admin = models.ManyToManyField(USER, related_name='groups_admin', blank=True, through="Admin")
     description = models.TextField(blank=True , null = True )
     picture = models.ImageField(blank = True, null = True)
     owner = models.ForeignKey(USER, on_delete=models.CASCADE)
     created_at =models.DateTimeField(auto_now_add= True)
+    update_at = models.DateTimeField(auto_now= True)
     likes = models.ManyToManyField(USER, related_name='group_likes', blank=True, through="GroupLikes")
     follower = models.ManyToManyField(USER, related_name="followings", blank=True, through ="Follows")
 
@@ -56,6 +59,18 @@ class Uses(models.Model):
     def user_info(self):
         return self.user
 
+class Admin(models.Model):
+    user = models.ForeignKey(USER, on_delete = models.CASCADE)
+    container = models.ForeignKey(Group, related_name= "my_admin",  on_delete = models.CASCADE)
+    created_at = models.DateTimeField(auto_now_add = True)
+
+
+class Request(models.Model):
+    user = models.ForeignKey(USER, on_delete = models.CASCADE)
+    group = models.ForeignKey(Group, related_name= "my_group",  on_delete = models.CASCADE)
+    created_at = models.DateTimeField(auto_now_add = True)
+
+
 
 class MyBlog(models.Model):
     """
@@ -69,6 +84,7 @@ class MyBlog(models.Model):
     owner = models.ForeignKey(User, on_delete = models.CASCADE)
     likes = models.ManyToManyField(USER, related_name = 'Blog_owner', blank = True,  through="MyBlogLikes")
     comment = models.ManyToManyField(USER, related_name ="owners", blank=True, through = "Message")
+    report = models.ManyToManyField(USER, related_name ="reported", blank=True, through = "Reports")
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -90,6 +106,16 @@ class  MyBlogLikes(models.Model):
     @property
     def user_info(self):
         return self.user
+
+class Reports(models.Model):
+    users = models.ForeignKey(USER, on_delete = models.CASCADE)
+    blog = models.ForeignKey(MyBlog, on_delete = models.CASCADE)
+    created_at = models.DateTimeField(auto_now_add = True)
+
+    @property
+    def user_info(self):
+        return self.user
+
 
 
 class Message(models.Model):

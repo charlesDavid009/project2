@@ -13,12 +13,29 @@ from .serializers import (
     ActionBlogSerializer,
     CommentSerializer,
     CreateCommentSerializer,
+    RequestSerializer,
+    FollowsSerializer,
+    UsesSerializer,
+    MyBlogLikesSerializer,
+    MessageLikesSerializer,
+    CommentLikesSerializer,
+    AdminSerializer,
+    ReportSerializer,
+    ReportListSerializer
 )
 from .models import (
     Group,
     MyBlog,
     Message,
-    MyComment
+    MyComment,
+    Request, 
+    Follows, 
+    Uses,
+    CommentsLikes,
+    MessageLikes,
+    MyBlogLikes,
+    Admin,
+    Reports
 )
 from rest_framework.views import APIView
 from rest_framework import mixins
@@ -42,8 +59,15 @@ def create_group(request, *args, **kwargs):
     if request.method == 'POST':
         serializer = CreateGroupSerializer(data=request.data)
         if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
+            obj = serializer.save()
+            vs = obj.id
+            qs = Group.objects.filter(id= vs)
+            if not qs.exists():
+                return Response({}, status=status.HTTP_404_NOT_FOUND)
+            objs = qs.first()
+            objs.follower.add(request.user)
+            objs.users.add(request.user)
+            return Response(objs, status=status.HTTP_201_CREATED)
         return Response({}, status=status.HTTP_400_BAD_REQUEST)
 
 
@@ -66,18 +90,19 @@ def group_delete(request, pk, *args, **kwargs):
     """
     THIS DELETE IF THE USERS OWNS THE POST
     """
-    if request.method == 'DELETE':
-        qs= Group.objects.filter(user__id=request.user)
-        if not qs.exists():
-            return Response(status=status.HTTP_401_UNAUTHORIZED)
+    try:
+        item = Group.objects.get(pk=pk)
+    except Group.DoesNotExist:
+        return Response(status=status.HTTP_404_NOT_FOUND)
+
+    qs= Group.objects.filter(owner=request.user)
+    if qs.exists():
         obj = qs.first()
-        try:
-            item = Group.objects.get(pk=pk)
-        except Group.DoesNotExist:
-            return Response(status=status.HTTP_404_NOT_FOUND)
-        item.delete()
-        return Response(status=status.HTTP_2OO_NO_CONTENT)
-    return Response(status=status.HTTP_400_BAD_REQUEST)
+        if request.method == 'DELETE':
+            item.delete()
+            return Response(status=status.HTTP_2OO_NO_CONTENT)
+        return Response(status=status.HTTP_400_BAD_REQUEST)
+    return Response(status=status.HTTP_401_UNAUTHORIZED)
 
 
 @api_view(['POST'])
@@ -98,15 +123,7 @@ def group_actions(request, *args, **kwargs):
             if not qs.exists():
                 return Response({}, status=status.HTTP_401_UNAUTHORIZED)
             obj = qs.first()
-            if action == "like":
-                obj.likes.add(request.user)
-                serializer = GroupSerializer(obj)
-                return Response(serializer.data)
-            elif action == "unlike":
-                obj.likes.remove(request.user)
-                serializer = GroupSerializer(obj)
-                return Response(serializer.data)
-            elif action == "follow":
+            if action == "follow":
                 obj.follower.add(request.user)
                 serializer = GroupSerializer(obj)
                 return Response(serializer.data)
@@ -114,25 +131,12 @@ def group_actions(request, *args, **kwargs):
                 obj.follower.remove(request.user)
                 serializer = GroupSerializer(obj)
                 return Response(serializer.data)
-            elif action == "add":
-                obj.users.add(request.user)
-                vs = Group.objects.filter(follower=request.user)
-                if not vs.exists():
-                    obj.follower.add(request.user)
-                    serializer = GroupSerializer(obj)
-                    return Response(serializer.data)
-                serializer = GroupSerializer(obj)
-                return Response(serializer.data)
-            elif action == "remove":
-                obj.users.remove(request.user)
-                serializer = GroupSerializer(obj)
-                return Response(serializer.data)
             elif action == "exit":
                 obj.users.remove(request.user)
                 serializer = GroupSerializer(obj)
                 return Response(serializer.data)
             elif action == "join":
-                obj.users.send(request.user)
+                obj.request.add(request.user)
                 serializer = GroupSerializer(obj)
                 return Response(serializer.data)
             elif action == "invite":
@@ -140,6 +144,159 @@ def group_actions(request, *args, **kwargs):
                 serializer = GroupSerializer(obj)
                 return Response(serializer.data)
             return Response({}, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def group_admins_actions(request, *args, **kwargs):
+    """
+    IF ACTION PASSED IS VALID RUN ACTIONS API
+    ID IS REQUIRED
+    ACTIONS = LIKE, UNLIKE, RE_BLOG
+    """
+    if request.method == 'POST':
+        qs = Group.objects.filter(users=request.user)
+        if not qs.exists():
+            return Response({}, status=status.HTTP_401_UNAUTHORIZED)
+        vs = qs.first()
+        serializer = ActionBlogSerializer(data=request.data)
+        if serializer.is_valid():
+            data = serializer.validated_data
+            request_id = data.get("id_")
+            action = data.get("action")
+            qs = Group.objects.filter(id=blog_id)
+            if not qs.exists():
+                return Response({}, status=status.HTTP_401_UNAUTHORIZED)
+            obj = qs.first()
+            qs = Group.objects.filter(request=request_id)
+            if not qs.exists():
+                return Response({}, status=status.HTTP_404_NOT_FOUND)
+            ms = qs.first()
+            if action == "confirm":
+                obj.users.add(ms)
+                vd = Group.objects.filter(follower=ms)
+                if not vs.exists():
+                    obj.follower.add(ms)
+                    serializer = GroupSerializer(obj)
+                    return Response(serializer.data)
+                serializer = GroupSerializer(obj)
+                return Response(serializer.data) 
+
+            elif action == "reject":
+                obj.request.remove(ms)
+                serializer = GroupSerializer(obj)
+                return Response(serializer.data)
+
+            elif action == "remove":
+                obj.users.remove(ms)
+                vs = Group.objects.filter(follower=ms)
+                if vs.exists():
+                    obj.follower.remove(ms)
+                    serializer = GroupSerializer(obj)
+                    return Response(serializer.data)
+                serializer = GroupSerializer(obj)
+                return Response(serializer.data)
+
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def group_request_view(request, id, *args, **kwargs):
+    """
+    LIST OF REQUEST ON GROUP ASSOCIATED TO GROUP ID 
+    """
+    qs = Group.objects.filter(admin=request.user)
+    if not qs.exists():
+        return Response({}, status=status.HTTP_401_UNAUTHORIZED)
+    vs = qs.first()
+    if request.method == 'GET':
+        item = Request.objects.filter(group= id).order_by('-created_at')
+        serializer = RequestSerializer(item, many=True)
+        return Response(serializer.data)
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def group_follow_list(request, id, *args, **kwargs):
+    """
+    LIST OF REQUEST ON GROUP ASSOCIATED TO GROUP ID 
+    """
+    qs = Group.objects.filter(admin=request.user)
+    if not qs.exists():
+        return Response({}, status=status.HTTP_401_UNAUTHORIZED)
+    vs = qs.first()
+    if request.method == 'GET':
+        item = Follows.objects.filter(groups= id).order_by('-created_at')
+        serializer = FollowsSerializer(item, many=True)
+        return Response(serializer.data)
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def group_users_list(request, id, *args, **kwargs):
+    """
+    LIST OF REQUEST ON GROUP ASSOCIATED TO GROUP ID 
+    """
+    qs = Group.objects.filter(follower=request.user)
+    if not qs.exists():
+        return Response({}, status=status.HTTP_401_UNAUTHORIZED)
+    vs = qs.first()
+    if request.method == 'GET':
+        item = Uses.objects.filter(members= id).order_by('-created_at')
+        serializer = AdminSerializer(item, many=True)
+        return Response(serializer.data)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def group_admin_list(request, id, *args, **kwargs):
+    """
+    LIST OF REQUEST ON GROUP ASSOCIATED TO GROUP ID 
+    """
+    qs = Group.objects.filter(follower=request.user)
+    if not qs.exists():
+        return Response({}, status=status.HTTP_401_UNAUTHORIZED)
+    vs = qs.first()
+    if request.method == 'GET':
+        item = Admin.objects.filter(container= id).order_by('-created_at')
+        serializer = AdminSerializer(item, many=True)
+        return Response(serializer.data)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def group_owner_actions(request, *args, **kwargs):
+    """
+    IF ACTION PASSED IS VALID RUN ACTIONS API
+    ID IS REQUIRED
+    ACTIONS = LIKE, UNLIKE, RE_BLOG
+    """
+    if request.method == 'POST':
+        qs = Group.objects.filter(owner=request.user)
+        if not qs.exists():
+            return Response({}, status=status.HTTP_401_UNAUTHORIZED)
+        vs = qs.first()
+        serializer = ActionBlogSerializer(data=request.data)
+        if serializer.is_valid():
+            data = serializer.validated_data
+            users_id = data.get("id_")
+            action = data.get("action")
+            qs = Group.objects.filter(id=blog_id)
+            if not qs.exists():
+                return Response({}, status=status.HTTP_404_NOT_FOUND)
+            obj = qs.first()
+            qs = Group.objects.filter(users=users_id)
+            if not qs.exists():
+                return Response({}, status=status.HTTP_404_NOT_FOUND)
+            ms = qs.first()
+            if action == "add":
+                obj.admin.add(ms)
+                vs = Group.objects.filter(follower=ms)
+                if not vs.exists():
+                    obj.follower.add(ms)
+                    serializer = GroupSerializer(obj)
+                    return Response(serializer.data)
+                serializer = GroupSerializer(obj)
+                return Response(serializer.data)
+
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
@@ -171,7 +328,6 @@ def create_blog(request, *args, **kwargs):
                 picture= picture, 
                 
             )
-            follower.add(request.user)
             serializer = BlogSerializer(my_comment)
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response({}, status=status.HTTP_400_BAD_REQUEST)
@@ -190,6 +346,55 @@ def blog_list(request, id, *args, **kwargs):
         qs = MyBlog.objects.filter(reference=id).order_by('-created_at')
         serializer = BlogSerializer(qs, many=True)
         return Response(serializer.data)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def blog_like_list(request, id, *args, **kwargs):
+    """
+    LIST OF REQUEST ON GROUP ASSOCIATED TO GROUP ID 
+    """
+    qs = Group.objects.filter(follower=request.user)
+    if not qs.exists():
+        return Response({}, status=status.HTTP_401_UNAUTHORIZED)
+    vs = qs.first()
+    if request.method == 'GET':
+        item = MyBlogLikes.objects.filter(blog=id).order_by('-created_at')
+        serializer = MyBlogLikesSerializer(item, many=True)
+        return Response(serializer.data)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def blog_report_view(request, id, *args, **kwargs):
+    """
+    LIST OF REQUEST ON GROUP ASSOCIATED TO GROUP ID 
+    """
+    qs = Group.objects.filter(admin=request.user)
+    if not qs.exists():
+        return Response({}, status=status.HTTP_401_UNAUTHORIZED)
+    vs = qs.first()
+    if request.method == 'GET':
+        item = MyBlog.objects.filter(reference= id).order_by('-created_at')
+        serializer = ReportSerializer(item, many=True)
+        return Response(serializer.data)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def blog_report_users(request, id, *args, **kwargs):
+    """
+    LIST OF REQUEST ON GROUP ASSOCIATED TO GROUP ID 
+    """
+    qs = Group.objects.filter(admin=request.user)
+    if not qs.exists():
+        return Response({}, status=status.HTTP_401_UNAUTHORIZED)
+    vs = qs.first()
+    if request.method == 'GET':
+        item = Reports.objects.filter(blog= id).order_by('-created_at')
+        serializer = ReportListSerializer(item, many=True)
+        return Response(serializer.data)
+
 
 
 @api_view(['GET', 'DELETE'])
@@ -226,7 +431,7 @@ def blog_delete(request, pk, *args, **kwargs):
     THIS DELETE IF THE USERS OWNS THE POST
     """
     if request.method == 'DELETE':
-        qs= MyBlog.objects.filter(user__id=request.user)
+        qs= MyBlog.objects.filter(user__id = request.user)
         if not qs.exists():
             return Response(status=status.HTTP_401_UNAUTHORIZED)
         obj = qs.first()
@@ -270,6 +475,10 @@ def blog_actions(request, *args, **kwargs):
                 obj.likes.remove(request.user)
                 serializer = BlogSerializer(obj)
                 return Response(serializer.data)
+            elif action == "report":
+                obj.report.add(request.user)
+                serializer = ReportSerializer(obj)
+                return Response(serializer.data)
             elif action == "reblog":
                 vs = obj.reference
                 new_blog = MyBlog.objects.create(
@@ -283,6 +492,36 @@ def blog_actions(request, *args, **kwargs):
                 return Response(serializer.data, status=status.HTTP_201_CREATED)
             return Response({}, status=status.HTTP_400_BAD_REQUEST)
 
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def report_actions(request, *args, **kwargs):
+    """
+    IF ACTION PASSED IS VALID RUN ACTIONS API
+    ID IS REQUIRED
+    ACTIONS = LIKE, UNLIKE, RE_BLOG
+    """
+    if request.method == 'POST':
+        vs = Group.objects.filter(admin=request.user)
+        if not vs.exists():
+            return Response({}, status=status.HTTP_401_UNAUTHORIZED)
+        serializer = ActionBlogSerializer(data=request.data)
+        if serializer.is_valid():
+            data = serializer.validated_data
+            blog_id = data.get("id_")
+            action = data.get("action")
+            qs = MyBlog.objects.filter(id=blog_id)
+            if not qs.exists():
+                return Response({}, status=status.HTTP_404_NOT_FOUND)
+            obj = qs.first()
+            if action == "pass":
+                obj.report.remove(request.user)
+                serializer = RequestSerializer(obj)
+                return Response(serializer.data)
+            elif action == "remove":
+                obj.delete(obj)
+                serializer = BlogSerializer(obj)
+                return Response(serializer.data)
+            
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
@@ -327,6 +566,21 @@ def message_list(request, id, *args, **kwargs):
             return Response({}, status=status.HTTP_401_UNAUTHORIZED)
         qs = MyBlog.objects.filter(reference=id).order_by('-created_at')
         serializer = MessageSerializer(qs, many=True)
+        return Response(serializer.data)
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def message_likes_list(request, id, *args, **kwargs):
+    """
+    LIST OF REQUEST ON GROUP ASSOCIATED TO GROUP ID 
+    """
+    qs = Group.objects.filter(follower=request.user)
+    if not qs.exists():
+        return Response({}, status=status.HTTP_401_UNAUTHORIZED)
+    vs = qs.first()
+    if request.method == 'GET':
+        item = MessageLikes.objects.filter(post= id).order_by('-created_at')
+        serializer = MessageLikesSerializer(item, many=True)
         return Response(serializer.data)
 
 
@@ -435,6 +689,21 @@ def comment_list(request, id, *args, **kwargs):
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
+def comment_likes_list(request, id, *args, **kwargs):
+    """
+    LIST OF REQUEST ON GROUP ASSOCIATED TO GROUP ID 
+    """
+    qs = Group.objects.filter(follower=request.user)
+    if not qs.exists():
+        return Response({}, status=status.HTTP_401_UNAUTHORIZED)
+    vs = qs.first()
+    if request.method == 'GET':
+        item = CommentsLikes.objects.filter(post= id).order_by('-created_at')
+        serializer = CommentLikesSerializer(item, many=True)
+        return Response(serializer.data)
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
 def comment_details(request, pk, *args, **kwargs):
     """
     THIS PRINTS OUT THE DETAILS WHEN CLICKED
@@ -457,19 +726,26 @@ def comment_delete(request, pk, *args, **kwargs):
     """
     THIS DELETE IF THE USERS OWNS THE POST
     """
-    if request.method == 'DELETE':
-        qs=MyComment.objects.filter(user__id=request.user)
-        if not qs.exists():
-            return Response(status=status.HTTP_401_UNAUTHORIZED)
-        obj = qs.first()
+    vs = Group.objects.filter(follower=request.user)
+    if vs.exists():
         try:
-            item =MyComment.objects.get(pk=pk)
+            item = MyComment.objects.get(pk=pk)
         except MyComment.DoesNotExist:
             return Response(status=status.HTTP_404_NOT_FOUND)
-        item.delete()
-        return Response(status=status.HTTP_2OO_NO_CONTENT)
-    return Response(status=status.HTTP_400_BAD_REQUEST)
 
+        if request.method == 'GET':
+            serializers = MyCommentSerializer(item)
+            return Response(serializers.data)
+
+        qs = MyComment.objects.filter(owner=request.user)
+        if qs.exists():
+            obj = qs.first()
+            if request.method == 'DELETE':
+                item.delete()
+                return Response(status=status.HTTP_203_NO_CONTENT)
+            return Response(status=status.HTTP_400_BAD_REQUEST)
+        return Response(status=status.HTTP_401_UNAUTHORIZED)
+    return Response(status=status.HTTP_403_FORBIDDEN)
 
 
 @api_view(['POST'])

@@ -1,5 +1,18 @@
 from rest_framework import serializers
-from .models import Group, MyBlog, Message, MyComment
+from .models import(
+    Group,
+    MyBlog,
+    Message,
+    MyComment,
+    Request,
+    Follows,
+    Uses, 
+    MyBlogLikes,
+    CommentsLikes,
+    MessageLikes,
+    Admin,
+    Reports
+)
 from django.conf import settings
 
 ACTIONS = settings.ACTIONS
@@ -12,7 +25,7 @@ class GroupSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Group
-        fields = '__all__'
+        exclude = ['request']
 
     def get_likes(self, obj):
         return obj.likes.count()
@@ -64,7 +77,7 @@ class BlogSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = MyBlog
-        fields = '__all__'
+        exclude = ['report']
 
     def get_likes(self, obj):
         return obj.likes.count()
@@ -142,5 +155,65 @@ class CreateCommentSerializer(serializers.Serializer):
     def  create(self, validated_data):
         return MyComment.objects.create(**validated_data)
 
+class RequestSerializer(serializers.ModelSerializer):
+    
+    class Meta:
+        model = Request
+        fields = '__all__'
 
 
+class UsesSerializer(serializers.ModelSerializer):
+    
+    class Meta:
+        model = Uses
+        fields = '__all__'
+
+
+class FollowsSerializer(serializers.ModelSerializer):
+    
+    class Meta:
+        model = Follows
+        fields = '__all__'
+
+class AdminSerializer(serializers.ModelSerializer):
+    
+    class Meta:
+        model = Admin
+        fields = '__all__'
+
+
+class MyBlogLikesSerializer(serializers.ModelSerializer):
+
+    class Meta:
+        model = MyBlogLikes
+        fields = '__all__'
+
+
+class ReportSerializer(serializers.ModelSerializer):
+    report = serializers.SerializerMethodField(read_only= True)
+
+    class Meta:
+        model = MyBlog
+        fields = ['title', 'content', 'picture', 'owner', 'report']
+
+    def get_report(self, obj):
+        return obj.report.count()
+
+
+class ReportListSerializer(serializers.ModelSerializer):
+
+    class Meta:
+        model = Reports 
+        fields = '__all__'
+
+class MessageLikesSerializer(serializers.ModelSerializer):
+    
+    class Meta:
+        model = MessageLikes
+        fields = '__all__'
+
+class CommentLikesSerializer(serializers.ModelSerializer):
+    
+    class Meta:
+        model = CommentsLikes
+        fields = '__all__'

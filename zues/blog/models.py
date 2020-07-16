@@ -7,6 +7,11 @@ USER = get_user_model()
 
 # Create your models here.
 
+class BlogQuerySet(models.QuerySet):
+    pass
+
+class BlogManager(models.Manager):
+    pass
 
 class Blog(models.Model):
     """

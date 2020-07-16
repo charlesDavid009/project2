@@ -37,6 +37,18 @@ def user_profile(request, *args, **kwargs):
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
+def get_user(request, id, *args, **kwargs):
+    try:
+        user = Profile.objects.get(user__id=id)
+    except Profile.DoesNotExist:
+        return Response(status=status.HTTP_404_NOT_FOUND)
+
+    if request.method == 'GET':
+        serializer = ProfileSerializer(user)
+        return Response(serializer)
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
 def view_user(request, username, *args, **kwargs):
     try:
         user = Profile.objects.get(user__username=username)
@@ -44,8 +56,12 @@ def view_user(request, username, *args, **kwargs):
         return Response(status=status.HTTP_404_NOT_FOUND)
 
     if request.method == 'GET':
-        serializer = ProfileSerializer(user)
-        return Response(serializer.data)
+        content= {
+            "username": username,
+            "Profile": user
+        }
+        serializer = ProfileSerializer(content)
+        return Response(serializer)
 
 
 @api_view(['POST'])

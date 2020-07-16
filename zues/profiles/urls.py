@@ -5,5 +5,6 @@ urlpatterns = [
     path('Profile/',  views.user_profile),
     path('Profile/create', views.create_profile),
     path('Profile/action', views.actions),
+    path('Profile/<int:id>/',  views.get_user),
     path('Profile/<str:username>/profile',  views.view_user),
 ]

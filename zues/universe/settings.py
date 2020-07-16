@@ -27,7 +27,7 @@ DEBUG = True
 
 
 
-ACTIONS = ['like', 'unlike', 'reblog', 'follow', 'unfollow', 'add', 'invite', 'comment', 'join', 'exit', 'remove']
+ACTIONS = ['like', 'unlike', 'reblog', 'follow', 'unfollow', 'add', 'invite', 'comment', 'join', 'exit', 'confirm', 'reject','report', 'remove', 'pass']
 
 ALLOWED_HOST = []
 

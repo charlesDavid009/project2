@@ -84,8 +84,8 @@ def items_details(request, pk,  *args, **kwargs):
     AND YOU CAN GET A PARTICULAR POST OR DELETE
     """
     try:
-        item = Blog.objects.get(pk=pk)
-    except MyBlog.DoesNotExist:
+        item = Blog.objects.get(id=pk)
+    except Blog.DoesNotExist:
         return Response(status=status.HTTP_404_NOT_FOUND)
 
     if request.method == 'GET':  
@@ -232,7 +232,7 @@ def comment_delete(request, pk,  *args, **kwargs):
         return Response(status=status.HTTP_404_NOT_FOUND)
 
     if request.method == 'GET':
-        serializers = CommentSerializer(item)
+        serializers = CommentSerializer (item)
         return Response(serializers.data)
 
     qs = Comment.objects.filter(user=request.user)
@@ -243,6 +243,8 @@ def comment_delete(request, pk,  *args, **kwargs):
             return Response(status=status.HTTP_203_NO_CONTENT)
         return Response(status=status.HTTP_400_BAD_REQUEST)
     return Response(status=status.HTTP_401_UNAUTHORIZED)
+
+
 
 
 
