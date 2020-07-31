@@ -2,6 +2,7 @@ from django.contrib import admin
 from .models import (
     Blog,
     BlogLikes,
+    Report,
     Comment,
     CommentLikes,
     SubComment,
@@ -38,6 +39,8 @@ class CommentAdmin(admin.ModelAdmin):
         model = Comment
 
 
+class ReportsAdmin(admin.ModelAdmin):
+    model = Report
 
 class BlogLikesAdmin(admin.TabularInline):
     model = BlogLikes
@@ -52,6 +55,7 @@ class BlogAdmin(admin.ModelAdmin):
         model = Blog
 
 
+admin.site.register(Report, ReportsAdmin)
 admin.site.register(Blog, BlogAdmin )
 admin.site.register(Comment, CommentAdmin )
 admin.site.register(SubComment, SubCommentAdmin )

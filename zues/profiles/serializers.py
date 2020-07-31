@@ -1,10 +1,9 @@
 from rest_framework import serializers
-from .models import Profile
+from .models import Profile, Follow
 from django.conf import settings
 
 
 ACTIONS = settings.ACTIONS
-
 
 class ProfileSerializer(serializers.ModelSerializer):
     followers = serializers.SerializerMethodField(read_only=True)
@@ -53,3 +52,10 @@ class ActionProfileSerializer(serializers.Serializer):
         if value in ACTIONS:
             return value
         return serializers.ValidationError(status=400)
+
+
+class FollowSerializer(serializers.ModelSerializer):
+
+    class Meta:
+        model = Follow
+        fields = '__all__'

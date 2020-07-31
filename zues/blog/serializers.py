@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Blog, Comment, SubComment
+from .models import Blog, Comment, SubComment, BlogLikes, CommentLikes, SubCommentLikes
 from django.conf import settings
 
 ACTIONS = settings.ACTIONS
@@ -24,6 +24,7 @@ class CreateBlogSerializer(serializers.Serializer):
 
 
 class BlogSerializer(serializers.ModelSerializer):
+    reports = serializers.SerializerMethodField(read_only=True)
     likes = serializers.SerializerMethodField(read_only=True)
     comments = serializers.SerializerMethodField(read_only=True)
     parent = CreateBlogSerializer(read_only= True)
@@ -31,6 +32,9 @@ class BlogSerializer(serializers.ModelSerializer):
     class Meta:
         model = Blog
         fields = "__all__"
+
+    def get_reports(self, obj):
+        return obj.reports.count()
 
     def get_likes(self, obj):
         return obj.likes.count()
@@ -44,10 +48,18 @@ class BlogSerializer(serializers.ModelSerializer):
             content= obj.parent.content
             return content
 
+class BlogLikesSerializer(serializers.ModelSerializer):
+
+    class Meta:
+        model = BlogLikes
+        fields = '__all__'
 
 class CreateCommentSerializer(serializers.Serializer):
+    id = serializers.IntegerField(read_only= True)
     blog_id = serializers.IntegerField(required=True)
     text = serializers.CharField(required=True, max_length=9000)
+    user_id = serializers.IntegerField(required=True)
+    created = serializers.DateTimeField(read_only=True)
 
     def create(self, validated_data):
         return Comment.objects.create(**validated_data)
@@ -74,9 +86,20 @@ class CommentSerializer(serializers.ModelSerializer):
         return obj.comment.count()
 
 
+class CommentLikesSerializer(serializers.ModelSerializer):
+
+    class Meta:
+        model = CommentLikes
+        fields = '__all__'
+
+
 class CreateSubCommentSerializer(serializers.Serializer):
+    id = serializers.IntegerField(read_only= True)
     blog_id = serializers.IntegerField(required=True)
     text = serializers.CharField(required=True, max_length=9000)
+    user_id = serializers.IntegerField(required=True)
+    created = serializers.DateTimeField(read_only=True)
+
 
     def create(self, validated_data):
         return SubComment.objects.create(**validated_data)
@@ -100,6 +123,12 @@ class SubCommentSerializer(serializers.ModelSerializer):
         return obj.like.count()
 
 
+class SubCommentLikesSerializer(serializers.ModelSerializer):
+
+    class Meta:
+        model = SubCommentLikes
+        fields = '__all__'
+
 class ActionBlogSerializer(serializers.Serializer):
     id = serializers.IntegerField()
     action = serializers.CharField()
@@ -110,3 +139,5 @@ class ActionBlogSerializer(serializers.Serializer):
         if not value in ACTIONS:
             raise serializers.ValidationError(status=400)
         return value
+
+

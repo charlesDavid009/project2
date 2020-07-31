@@ -1,5 +1,6 @@
 from django.shortcuts import render
 from django.http import HttpResponse
+from django.contrib.auth import get_user_model
 from django.http import HttpResponse, JsonResponse
 from rest_framework import status
 from rest_framework.response import Response
@@ -34,7 +35,7 @@ from .models import (
     CommentsLikes,
     MessageLikes,
     MyBlogLikes,
-    Admin,
+    Admins,
     Reports
 )
 from rest_framework.views import APIView
@@ -45,6 +46,7 @@ from rest_framework.decorators import api_view, authentication_classes, permissi
 from rest_framework.permissions import IsAuthenticated
 from django.conf import settings
 
+User = get_user_model()
 
 ACTIONS = settings.ACTIONS
 
@@ -67,7 +69,9 @@ def create_group(request, *args, **kwargs):
             objs = qs.first()
             objs.follower.add(request.user)
             objs.users.add(request.user)
-            return Response(objs, status=status.HTTP_201_CREATED)
+            objs.admin.add(request.user)
+            serializers = objs.save()
+            return Response(serializers, status=status.HTTP_201_CREATED)
         return Response({}, status=status.HTTP_400_BAD_REQUEST)
 
 
@@ -81,28 +85,28 @@ def group_list(request, *args, **kwargs):
     if request.method == 'GET':
         item = Group.objects.all()
         serializer = GroupSerializer(item, many=True)
+        print(serializer)
         return Response(serializer.data)
 
 
 @api_view(['GET', 'DELETE'])
 @permission_classes([IsAuthenticated])
-def group_delete(request, pk, *args, **kwargs):
+def group_delete(request, group_id, *args, **kwargs):
     """
     THIS DELETE IF THE USERS OWNS THE POST
     """
-    try:
-        item = Group.objects.get(pk=pk)
-    except Group.DoesNotExist:
-        return Response(status=status.HTTP_404_NOT_FOUND)
-
-    qs= Group.objects.filter(owner=request.user)
+    qs = Group.objects.filter(id=group_id)
+    if not qs.exists():
+        return Response({}, status=status.HTTP_404_NOT_FOUND)
+    qs = Group.objects.filter(owner=request.user)
     if qs.exists():
         obj = qs.first()
         if request.method == 'DELETE':
-            item.delete()
-            return Response(status=status.HTTP_2OO_NO_CONTENT)
-        return Response(status=status.HTTP_400_BAD_REQUEST)
-    return Response(status=status.HTTP_401_UNAUTHORIZED)
+            obj.delete()
+            return Response({}, status=status.HTTP_204_NO_CONTENT)
+        return Response({}, status=status.HTTP_400_BAD_REQUEST)
+    return Response({}, status=status.HTTP_401_UNAUTHORIZED)
+
 
 
 @api_view(['POST'])
@@ -155,50 +159,48 @@ def group_admins_actions(request, *args, **kwargs):
     ACTIONS = LIKE, UNLIKE, RE_BLOG
     """
     if request.method == 'POST':
-        qs = Group.objects.filter(users=request.user)
+        qs = Group.objects.filter(admin=request.user)
         if not qs.exists():
             return Response({}, status=status.HTTP_401_UNAUTHORIZED)
         vs = qs.first()
         serializer = ActionBlogSerializer(data=request.data)
         if serializer.is_valid():
             data = serializer.validated_data
-            request_id = data.get("id_")
+            group_id = data.get("id_")
             action = data.get("action")
-            qs = Group.objects.filter(id=blog_id)
+            qs = Request.objects.filter(id = group_id)
             if not qs.exists():
-                return Response({}, status=status.HTTP_401_UNAUTHORIZED)
-            obj = qs.first()
-            qs = Group.objects.filter(request=request_id)
-            if not qs.exists():
-                return Response({}, status=status.HTTP_404_NOT_FOUND)
-            ms = qs.first()
+                return Response(status=status.HTTP_404_NOT_FOUND)
+            vd = qs.first()
+            user = vd.user
+            obj = vd.group
             if action == "confirm":
-                obj.users.add(ms)
-                vd = Group.objects.filter(follower=ms)
-                if not vs.exists():
-                    obj.follower.add(ms)
+                obj.users.add(user)
+                vd = Group.objects.filter(follower=user)
+                if not vd.exists():
+                    obj.follower.add(user)
                     serializer = GroupSerializer(obj)
                     return Response(serializer.data)
                 serializer = GroupSerializer(obj)
                 return Response(serializer.data) 
 
             elif action == "reject":
-                obj.request.remove(ms)
+                obj.request.remove(user)
                 serializer = GroupSerializer(obj)
                 return Response(serializer.data)
 
             elif action == "remove":
-                obj.users.remove(ms)
-                vs = Group.objects.filter(follower=ms)
+                obj.users.remove(user)
+                vs = Group.objects.filter(follower=user)
                 if vs.exists():
-                    obj.follower.remove(ms)
+                    obj.follower.remove(user)
                     serializer = GroupSerializer(obj)
                     return Response(serializer.data)
                 serializer = GroupSerializer(obj)
                 return Response(serializer.data)
 
 
-
+ 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def group_request_view(request, id, *args, **kwargs):
@@ -241,7 +243,7 @@ def group_users_list(request, id, *args, **kwargs):
     vs = qs.first()
     if request.method == 'GET':
         item = Uses.objects.filter(members= id).order_by('-created_at')
-        serializer = AdminSerializer(item, many=True)
+        serializer = UsesSerializer(item, many=True)
         return Response(serializer.data)
 
 
@@ -256,7 +258,7 @@ def group_admin_list(request, id, *args, **kwargs):
         return Response({}, status=status.HTTP_401_UNAUTHORIZED)
     vs = qs.first()
     if request.method == 'GET':
-        item = Admin.objects.filter(container= id).order_by('-created_at')
+        item = Admins.objects.filter(container= id).order_by('-created_at')
         serializer = AdminSerializer(item, many=True)
         return Response(serializer.data)
 
@@ -267,7 +269,7 @@ def group_owner_actions(request, *args, **kwargs):
     """
     IF ACTION PASSED IS VALID RUN ACTIONS API
     ID IS REQUIRED
-    ACTIONS = LIKE, UNLIKE, RE_BLOG
+    ACTIONS = ADD USERS AS ADMIN
     """
     if request.method == 'POST':
         qs = Group.objects.filter(owner=request.user)
@@ -279,16 +281,14 @@ def group_owner_actions(request, *args, **kwargs):
             data = serializer.validated_data
             users_id = data.get("id_")
             action = data.get("action")
-            qs = Group.objects.filter(id=blog_id)
-            if not qs.exists():
-                return Response({}, status=status.HTTP_404_NOT_FOUND)
-            obj = qs.first()
-            qs = Group.objects.filter(users=users_id)
+            qs = Uses.objects.filter(id = users_id)
             if not qs.exists():
                 return Response({}, status=status.HTTP_404_NOT_FOUND)
             ms = qs.first()
+            md = ms.user
+            obj = ms.members
             if action == "add":
-                obj.admin.add(ms)
+                obj.admin.add(md)
                 vs = Group.objects.filter(follower=ms)
                 if not vs.exists():
                     obj.follower.add(ms)
@@ -296,7 +296,10 @@ def group_owner_actions(request, *args, **kwargs):
                     return Response(serializer.data)
                 serializer = GroupSerializer(obj)
                 return Response(serializer.data)
-
+            elif action == "remove":
+                obj.admin.remove(md)
+                serializer = GroupSerializer(obj)
+                return Response(serializer.data)
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
@@ -480,11 +483,11 @@ def blog_actions(request, *args, **kwargs):
                 serializer = ReportSerializer(obj)
                 return Response(serializer.data)
             elif action == "reblog":
-                vs = obj.reference
+                vs = obj.reference_id
                 new_blog = MyBlog.objects.create(
                     owner=request.user,
                     parent=obj,
-                    reference= vs,
+                    reference_id= vs,
                     title= til,
                     content= add
                 )

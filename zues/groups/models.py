@@ -15,13 +15,12 @@ class Group(models.Model):
     group_name = models.CharField(max_length = 100, blank = False, null = True)
     users = models.ManyToManyField(USER, related_name='groups_users', blank=True, through="Uses")
     request = models.ManyToManyField(USER, related_name='groups_request', blank=True, through="Request")
-    admin = models.ManyToManyField(USER, related_name='groups_admin', blank=True, through="Admin")
+    admin = models.ManyToManyField(USER, related_name='groups_admin', blank=True, through="Admins")
     description = models.TextField(blank=True , null = True )
     picture = models.ImageField(blank = True, null = True)
     owner = models.ForeignKey(USER, on_delete=models.CASCADE)
     created_at =models.DateTimeField(auto_now_add= True)
     update_at = models.DateTimeField(auto_now= True)
-    likes = models.ManyToManyField(USER, related_name='group_likes', blank=True, through="GroupLikes")
     follower = models.ManyToManyField(USER, related_name="followings", blank=True, through ="Follows")
 
 
@@ -39,17 +38,6 @@ class Follows(models.Model):
     def user_info(self):
         return self.user
 
-
-class GroupLikes(models.Model):
-    user = models.ForeignKey(USER, on_delete = models.CASCADE)
-    post = models.ForeignKey(Group, on_delete = models.CASCADE)
-    created_at = models.DateTimeField(auto_now_add = True)
-
-    @property
-    def user_info(self):
-        return self.user
-
-
 class Uses(models.Model):
     user = models.ForeignKey(USER, on_delete = models.CASCADE)
     members = models.ForeignKey(Group, on_delete = models.CASCADE)
@@ -59,7 +47,7 @@ class Uses(models.Model):
     def user_info(self):
         return self.user
 
-class Admin(models.Model):
+class Admins(models.Model):
     user = models.ForeignKey(USER, on_delete = models.CASCADE)
     container = models.ForeignKey(Group, related_name= "my_admin",  on_delete = models.CASCADE)
     created_at = models.DateTimeField(auto_now_add = True)

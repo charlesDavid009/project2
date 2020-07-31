@@ -12,12 +12,18 @@ from .serializers import(
     CommentSerializer,
     CreateSubCommentSerializer,
     SubCommentSerializer,
-    ActionBlogSerializer
+    ActionBlogSerializer,
+    BlogLikesSerializer,
+    CommentLikesSerializer,
+    SubCommentLikesSerializer
 )
 from .models import (
     Blog,
     Comment,
     SubComment,
+    BlogLikes,
+    CommentLikes,
+    SubCommentLikes
 )
 from rest_framework.views import APIView
 from rest_framework import mixins
@@ -46,7 +52,6 @@ def create_blog(request, *args, **kwargs):
     """
     if request.method == 'POST':
         serializer = CreateBlogSerializer(data=request.data)
-        print(request.data)
         if serializer.is_valid():
             serializer.save()
             return Response(serializer.data, status=status.HTTP_201_CREATED)
@@ -55,7 +60,7 @@ def create_blog(request, *args, **kwargs):
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
-def items_list(request):
+def items_list(request, *args, **kwargs):
     """
     list of items or create a new line
     """
@@ -63,17 +68,44 @@ def items_list(request):
         item = Blog.objects.order_by('-created').order_by("-created")
         serializer = BlogSerializer(item, many=True)
         return Response(serializer.data)
+        
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
-def items_user_list(request):
+def blog_feeds(request, *args, **kwargs):
     """
-    list of items or create a new line
+    BLOG FEEDS OF USER AND USERS FOLLOWED
+    """
+    if request.method == 'GET':
+        user = request.user
+        qs = Blog.objects.feed(user)
+        serializer = BlogSerializer(qs, many=True)
+        return Response(serializer.data)
+
+@api_view(['GET','DELETE'])
+@permission_classes([IsAuthenticated])
+def blog_user_list(request, *args, **kwargs):
+    """
+    BLOG OD USER ONLY
     """
     if request.method == 'GET':
         item = Blog.objects.filter(user=request.user).order_by('-created')
         serializer = BlogSerializer(item, many=True)
         return Response(serializer.data)
+    
+    qs= Blog.objects.filter(user=request.user)
+    if qs.exists():
+        obj = qs.first()
+        if request.method == 'DELETE':
+            data.get("id_") or {}
+            qs = Blog.objects.filter(id= id)
+            if not qs.exists():
+                return Response(status=status.HTTP_404_NOT_FOUND)
+            item= qs.first()
+            item.delete()
+            return Response(status=status.HTTP_204_NO_CONTENT)
+        return Response(status=status.HTTP_400_BAD_REQUEST)
+    return Response(status=status.HTTP_401_UNAUTHORIZED)
 
 
 @api_view(['GET', 'DELETE'])
@@ -92,38 +124,37 @@ def items_details(request, pk,  *args, **kwargs):
         serializers = BlogSerializer(item)
         return Response(serializers.data)
     
-    qs= Blog.objects.filter(user=request.user)
-    if qs.exists():
-        obj = qs.first()
-        if request.method == 'DELETE':
-            item.delete()
-            return Response(status=status.HTTP_203_NO_CONTENT)
-        return Response(status=status.HTTP_400_BAD_REQUEST)
-    return Response(status=status.HTTP_401_UNAUTHORIZED)
 
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def blog_like_list(request, blog_id, *args, **kwargs):
+    """
+    LIST OF REQUEST ON GROUP ASSOCIATED TO GROUP ID 
+    """
+    if request.method == 'GET':
+        item = BlogLikes.objects.filter(blog= blog_id).order_by('-created')
+        serializer = BlogLikesSerializer(item, many=True)
+        return Response(serializer.data)
 
 
 @api_view(['DELETE'])
 @permission_classes([IsAuthenticated])
-def items_delete(request, pk,  *args, **kwargs):
+def items_delete(request, tweet_id,  *args, **kwargs):
     """
     THIS DELETE IF THE USERS OWNS THE POST
     """
-    try:
-        qs = Blog.objects.get(pk=pk)
-    except Blog.DoesNotExist:
-        return Response(status=status.HTTP_404_NOT_FOUND)
-    
-    try:
-        qs = qs.objects.filter(user=request.user)
-    except qs.DoesNotExist:
-        return Response(status=status.HTTP_401_UNAUTHORIZED)
-
-    if request.method == 'DELETE':
+    qs = Blog.objects.filter(id=tweet_id)
+    if not qs.exists():
+        return Response({}, status=status.HTTP_404_NOT_FOUND)
+    qs= Blog.objects.filter(user=request.user)
+    if qs.exists():
         obj = qs.first()
-        obj.delete()
-        return Response(status=status.HTTP_2O1_NO_CONTENT)
-
+        if request.method == 'DELETE':
+            obj.delete()
+            return Response({}, status=status.HTTP_204_NO_CONTENT)
+        return Response({}, status=status.HTTP_400_BAD_REQUEST)
+    return Response({}, status=status.HTTP_401_UNAUTHORIZED)
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
@@ -152,6 +183,10 @@ def actions(request, *args, **kwargs):
                 obj.likes.remove(request.user)
                 serializer = BlogSerializer(obj)
                 return Response(serializer.data)
+            elif action == "report":
+                obj.reports.add(request.user)
+                serializer = BlogSerializer(obj)
+                return Response(serializer.data)
             elif action == "reblog":
                 new_blog = Blog.objects.create(
                     user=request.user,
@@ -172,32 +207,21 @@ def comment(request, *args, **kwargs):
 
     if request.method == 'POST':
         serializer = CreateCommentSerializer(data=request.data)
+        print(request.data)
         if serializer.is_valid():
-            data = serializer.validated_data
-            blog_id = data.get("blog_id")
-            comments = data.get("text")
-            qs = Blog.objects.filter(id=blog_id)
-            if not qs.exists():
-                return Response({}, status=status.HTTP_404_NOT_FOUND)
-            obj = qs.first()
-            my_comment= Comment.objects.create(
-                user=request.user,
-                blog=obj,
-                text=comments
-            )
-            serializer = CommentSerializer(my_comment)
+            serializer.save()
             return Response(serializer.data, status=status.HTTP_201_CREATED)
-        return Response({}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
-def comment_list(request, id, *args, **kwargs):
+def comment_list(request, blog_id, *args, **kwargs):
     """
     TO RETURN COMMENT BASED ON THE comment reference
     """
     try:
-        item = Comment.objects.filter(blog=id).order_by('-created')
+        item = Comment.objects.filter(blog= blog_id).order_by('-created')
     except Comment.DoesNotExist:
         return Response(status=status.HTTP_404_NOT_FOUND)
 
@@ -209,42 +233,50 @@ def comment_list(request, id, *args, **kwargs):
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
-def comment_details(request, id, *args, **kwargs):
+def comment_details(request, comment_id, *args, **kwargs):
     """
     TO RETURN COMMENT BASED ON THE comment reference
     """
 
     if request.method == 'GET':
-        item = Comment.objects.filter(id=id)
+        qs= Comment.objects.filter(id=comment_id)
+        if not qs.exists():
+            return Response(status= status.HTTP_404_NOT_FOUND)
+        item= qs.first()
         serializer = CommentSerializer(item)
+        return Response(serializer.data)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def comment_like_list(request, comment_id, *args, **kwargs):
+    """
+    LIST OF REQUEST ON GROUP ASSOCIATED TO GROUP ID 
+    """
+    if request.method == 'GET':
+        item = CommentLikes.objects.filter(blog= comment_id).order_by('-created')
+        serializer = CommentLikesSerializer(item, many=True)
         return Response(serializer.data)
 
 
 @api_view(['DELETE'])
 @permission_classes([IsAuthenticated])
-def comment_delete(request, pk,  *args, **kwargs):
+def comment_delete(request, comment_id,  *args, **kwargs):
     """
     THIS DELETE IF THE USERS OWNS THE COMMENT
     """
-    try:
-        item = Comment.objects.get(pk=pk)
-    except Comment.DoesNotExist:
-        return Response(status=status.HTTP_404_NOT_FOUND)
-
-    if request.method == 'GET':
-        serializers = CommentSerializer (item)
-        return Response(serializers.data)
-
     qs = Comment.objects.filter(user=request.user)
-    if qs.exists():
-        obj = qs.first()
-        if request.method == 'DELETE':
-            item.delete()
-            return Response(status=status.HTTP_203_NO_CONTENT)
-        return Response(status=status.HTTP_400_BAD_REQUEST)
-    return Response(status=status.HTTP_401_UNAUTHORIZED)
-
-
+    if not qs.exists():
+        return Response(status=status.HTTP_401_UNAUTHORIZED)
+    obj = qs.first()
+    if request.method == 'DELETE':
+        try:
+            item = Comment.objects.get(id= comment_id)
+        except Comment.DoesNotExist:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        item.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+    return Response(status=status.HTTP_400_BAD_REQUEST)
 
 
 
@@ -287,71 +319,71 @@ def subcomment(request, *args, **kwargs):
     if request.method == 'POST':
         serializer = CreateSubCommentSerializer(data=request.data)
         if serializer.is_valid():
-            data = serializer.validated_data
-            blog_id = data.get("blog_id")
-            comments = data.get("text")
-            qs = Comment.objects.filter(id=blog_id)
-            if not qs.exists():
-                return Response({}, status=status.HTTP_404_NOT_FOUND)
-            obj = qs.first()
-            my_comment = SubComment.objects.create(
-                user=request.user,
-                blog=obj,
-                text=comments
-            )
-            serializer = SubCommentSerializer(my_comment)
+            serializer.save()
             return Response(serializer.data, status=status.HTTP_201_CREATED)
-        return Response({}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
-def subcomment_list(request, id, *args, **kwargs):
+def subcomment_list(request, comment_id, *args, **kwargs):
     """
     TO RETURN COMMENT BASED ON THE comment reference
     """
 
     if request.method == 'GET':
-        qs = SubComment.objects.filter(blog=id).order_by('-created')
-        serializer = CommentSerializer(qs, many=True)
+        qs = SubComment.objects.filter(blog= comment_id).order_by('-created')
+        serializer = SubCommentSerializer(qs, many=True)
         return Response(serializer.data)
 
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
-def subcomment_details(request, id, *args, **kwargs):
+def subcomment_details(request, subcomment_id, *args, **kwargs):
     """
     TO RETURN COMMENT BASED ON THE comment reference
     """
 
     if request.method == 'GET':
-        item = SubComment.objects.filter(id=id)
+        qs = SubComment.objects.filter(id=subcomment_id)
+        if not qs.exists():
+            return Response(status= status.HTTP_404_NOT_FOUND)
+        item= qs.first()
+        print(item)
         serializer = SubCommentSerializer(item)
+        print(serializer)
+        return Response(serializer.data)
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def subcomment_like_list(request, subcomment_id, *args, **kwargs):
+    """
+    LIST OF REQUEST ON GROUP ASSOCIATED TO GROUP ID 
+    """
+    if request.method == 'GET':
+        item = SubCommentLikes.objects.filter(blog= subcomment_id).order_by('-created')
+        serializer = SubCommentLikesSerializer(item, many=True)
         return Response(serializer.data)
 
 
 @api_view(['DELETE'])
 @permission_classes([IsAuthenticated])
-def subcomment_delete(request, pk,  *args, **kwargs):
+def subcomment_delete(request, subcomment_id,  *args, **kwargs):
     """
     THIS DELETE IF THE USERS OWNS THE COMMENT
     """
-    try:
-        item =SubComment.objects.get(pk=pk)
-    except SubComment.DoesNotExist:
-        return Response(status=status.HTTP_404_NOT_FOUND)
-
-    if request.method == 'GET':
-        serializers = SubCommentSerializer(item)
-        return Response(serializers.data)
-
+    
+    qs = SubComment.objects.filter(id=subcomment_id)
+    if not qs.exists():
+        return Response({}, status=status.HTTP_404_NOT_FOUND)
     qs = SubComment.objects.filter(user=request.user)
     if qs.exists():
         obj = qs.first()
         if request.method == 'DELETE':
-            item.delete()
-            return Response(status=status.HTTP_203_NO_CONTENT)
-        return Response(status=status.HTTP_400_BAD_REQUEST)
-    return Response(status=status.HTTP_401_UNAUTHORIZED)
-
+            obj.delete()
+            return Response({}, status=status.HTTP_204_NO_CONTENT)
+        return Response({}, status=status.HTTP_400_BAD_REQUEST)
+    return Response({}, status=status.HTTP_401_UNAUTHORIZED)
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])

@@ -11,7 +11,7 @@ urlpatterns = [
     path('Group/<int:id>/requests',  views.group_request_view),
     path('Group/<int:id>/follow',  views.group_follow_list),
     path('Group/<int:id>/users',  views.group_users_list),
-    path('Group/<int:pk>/delete', views.group_delete),
+    path('Group/<str:group_id>/delete', views.group_delete),
 
     path('Group/blog',  views.create_blog),
     path('Group/<int:id>/blog_list/', views.blog_list),

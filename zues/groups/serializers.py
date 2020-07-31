@@ -10,7 +10,7 @@ from .models import(
     MyBlogLikes,
     CommentsLikes,
     MessageLikes,
-    Admin,
+    Admins,
     Reports
 )
 from django.conf import settings
@@ -19,16 +19,12 @@ ACTIONS = settings.ACTIONS
 
 
 class GroupSerializer(serializers.ModelSerializer):
-    likes = serializers.SerializerMethodField(read_only=True)
     users = serializers.SerializerMethodField(read_only=True)
     follower = serializers.SerializerMethodField(read_only=True)
 
     class Meta:
         model = Group
-        exclude = ['request']
-
-    def get_likes(self, obj):
-        return obj.likes.count()
+        exclude = ['request', 'admin']
 
     def get_follower(self, obj):
         return obj.follower.count()
@@ -55,7 +51,7 @@ class CreateGroupSerializer(serializers.Serializer):
 
 
 class CreateBlogSerializer(serializers.Serializer):
-    reference = serializers.IntegerField()
+    reference_id = serializers.IntegerField()
     title = serializers.CharField(max_length=200)
     content = serializers.CharField()
     picture = serializers.ImageField(required=False)
@@ -128,6 +124,7 @@ class ActionBlogSerializer(serializers.Serializer):
     action = serializers.CharField()
     title = serializers.CharField(required= False)
     add = serializers.CharField(required= False)
+    user = serializers.IntegerField(required=False)
 
     def validate_action(self, value):
         value = value.lower().strip()
@@ -178,7 +175,7 @@ class FollowsSerializer(serializers.ModelSerializer):
 class AdminSerializer(serializers.ModelSerializer):
     
     class Meta:
-        model = Admin
+        model = Admins
         fields = '__all__'
 
 

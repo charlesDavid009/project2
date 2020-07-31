@@ -6,6 +6,22 @@ from django.db.models.signals import post_save
 
 USER = get_user_model()
 
+class ProfileQuerySet(models.QuerySet):
+    def following_feed(self, users):
+        
+        profiles_exist = users.following.exists()
+        followed_users = []
+        if profiles_exist:
+            followed_users = users.following.values_list("users__id", flat=True)
+        return self.filter(users__id__in =followed_users).distinct().order_by("-created_at")
+
+class ProfileManager(models.Manager):
+    def get_queryset(self, *args, **kwargs):
+        return ProfileQuerySet(self.model, using=self._db)
+
+    def following_feed(self, users):
+        return self.get_queryset().following_feed(users)
+
 
 class Profile(models.Model):
     """
@@ -23,8 +39,9 @@ class Profile(models.Model):
     nationality = models.CharField(max_length=250, blank=False, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
     update_at = models.DateTimeField(auto_now=True)
-    followers = models.ManyToManyField(USER, related_name="following", blank=True, through="Follow")
+    followers = models.ManyToManyField(USER, related_name='following', blank=True, through="Follow")
 
+    
     def user_did_save(sender, instance, created, *args, **kwargs):
         if created:
             Profile.objects.get_or_create(user=instance)
@@ -32,10 +49,8 @@ class Profile(models.Model):
     post_save.connect(user_did_save, sender=USER)
 
 class Follow(models.Model):
-    usernames = models.ForeignKey(USER, on_delete=models.CASCADE)
-    profile = models.ForeignKey(Profile, on_delete=models.CASCADE)
+    users = models.ForeignKey(USER, on_delete=models.CASCADE)
+    profiles = models.ForeignKey(Profile, on_delete=models.CASCADE)
     created_at = models.DateTimeField(auto_now_add=True)
-
-    @property
-    def user_info(self):
-        return self.user
+    
+    objects = ProfileManager()

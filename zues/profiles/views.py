@@ -6,10 +6,12 @@ from rest_framework.response import Response
 from .serializers import(
     ProfileSerializer,
     CreateProfileSerializer,
-    ActionProfileSerializer
+    ActionProfileSerializer,
+    FollowSerializer
 )
 from .models import (
-    Profile
+    Profile,
+    Follow
 )
 from rest_framework.views import APIView
 from rest_framework import mixins
@@ -20,6 +22,20 @@ from django.conf import settings
 
 
 ACTIONS = settings.ACTIONS
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def user_followers(request, *args, **kwargs):
+    qs = Profile.objects.filter(user=request.user)
+    if not qs.exists():
+        return Response(status=status.HTTP_404_NOT_FOUND)
+    obj = qs.first()
+    
+    if request.method == 'GET':
+        item = Follow.objects.filter(profiles= obj).order_by('-created_at')
+        serializer = FollowSerializer(item, many=True)
+        return Response(serializer.data)
 
 
 @api_view(['GET'])
@@ -45,24 +61,16 @@ def get_user(request, id, *args, **kwargs):
 
     if request.method == 'GET':
         serializer = ProfileSerializer(user)
-        return Response(serializer)
+        return Response(serializer.data)
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
-def view_user(request, username, *args, **kwargs):
-    try:
-        user = Profile.objects.get(user__username=username)
-    except Profile.DoesNotExist:
-        return Response(status=status.HTTP_404_NOT_FOUND)
-
+def user_following(request,  *args, **kwargs):
     if request.method == 'GET':
-        content= {
-            "username": username,
-            "Profile": user
-        }
-        serializer = ProfileSerializer(content)
-        return Response(serializer)
-
+        user = request.user
+        qs = Follow.objects.following_feed(users)
+        serializer = FollowSerializer(qs, many=True)
+        return Response(serializer.data)
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
@@ -78,7 +86,7 @@ def create_profile(request, *args, **kwargs):
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
-def actions(request, *args, **kwargs):
+def actions(request,  *args, **kwargs):
     """
     IF ACTION PASSED IS VALID RUN ACTIONS API
     ID IS REQUIRED
@@ -86,20 +94,24 @@ def actions(request, *args, **kwargs):
     """
     if request.method == 'POST':
         serializer = ActionProfileSerializer(data=request.data)
+        me = request.user 
         if serializer.is_valid():
             data = serializer.validated_data
             profile = data.get("id")
-            action = data.get("action")
-            qs = Profile.objects.filte(user_id=profile)
-            if not qs.exsits():
+            qs = Profile.objects.filter(user__id=profile)
+            if not qs.exists():
                 return Response({}, status=status.HTTP_404_NOT_FOUND)
             obj = qs.first()
+            if me == obj:
+                counted.qs = profile.following.all()
+                return Response({"following":counted.qs.count()}, status=status.HTTP_200_OK )
+            action = data.get("action")
             if action == "follow":
-                obj.followers.add(obj)
+                obj.followers.add(me)
                 serializer = ProfileSerializer(obj)
                 return Response(serializer.data)
             elif action == "unfollow":
-                obj.followers.remove(obj)
+                obj.followers.remove(me)
                 serializer = ProfileSerializer(obj)
                 return Response(serializer.data)
             else:

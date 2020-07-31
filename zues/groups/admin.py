@@ -3,13 +3,13 @@ from .models import (
     Group,
     Uses,
     Follows,
-    GroupLikes,
     MyBlog,
     MyBlogLikes,
     MyComment,
     CommentsLikes,
     Message,
-    MessageLikes
+    MessageLikes,
+    Admins
 )
 
 # Register your models here.
@@ -62,13 +62,13 @@ class FollowsAdmin(admin.TabularInline):
 
 class UsesAdmin(admin.TabularInline):
     model = Uses
+    
 
-
-class GroupLikesAdmin(admin.TabularInline):
-    model = GroupLikes
+class AdminsAdmin(admin.TabularInline):
+    model = Admins
 
 class GroupAdmin(admin.ModelAdmin):
-    inlines = [FollowsAdmin, UsesAdmin, GroupLikesAdmin]
+    inlines = [FollowsAdmin, UsesAdmin, AdminsAdmin]
     list_display = ['group_name', 'created_at', 'owner']
 
     search_feild = ['group_name']

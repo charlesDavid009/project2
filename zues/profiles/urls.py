@@ -6,5 +6,6 @@ urlpatterns = [
     path('Profile/create', views.create_profile),
     path('Profile/action', views.actions),
     path('Profile/<int:id>/',  views.get_user),
-    path('Profile/<str:username>/profile',  views.view_user),
+    path('Profile/followers',  views.user_followers),
+    path('Profile/following',  views.user_following),
 ]
